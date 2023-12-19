@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@babylonjs/core": "^6.34.1",
+    "@babylonjs/loaders": "^6.34.1",
+    "@babylonjs/materials": "^6.34.1",
     "maplibre-gl": "^3.6.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"

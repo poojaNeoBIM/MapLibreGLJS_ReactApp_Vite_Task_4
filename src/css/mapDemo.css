@@ -13,6 +13,13 @@ body {
   height: 100%;
 }
 
+#mapOptions {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
