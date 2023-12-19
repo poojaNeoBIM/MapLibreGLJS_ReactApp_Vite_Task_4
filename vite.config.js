@@ -5,4 +5,16 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   base: "./",
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      '@babylonjs/core',
+      '@babylonjs/loaders',
+      '@babylonjs/materials',
+      'maplibre-gl'
+    ],
+    // Optionally, specify any dependencies to exclude
+    // exclude: ['some-package']
+  }
 });
