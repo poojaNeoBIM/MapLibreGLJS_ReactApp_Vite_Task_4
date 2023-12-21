@@ -22,11 +22,11 @@ export default function Map() {
   const [cubePosition, setCubePosition] = useState({ x: 0, y: 0, z: 0 });
   // Refs for the cube, gizmo, and utility layer
   const cubeRef = useRef(null);
-  const gizmoRef = useRef(null);
   const sceneRef = useRef(null);  // Ref for the Babylon scene
   const utilLayerRef = useRef(null); // Add a ref for the utility layer
 
- 
+  // State to manage the X position of the cube
+  const [cubeX, setCubeX] = useState(0);
   
  
 
@@ -34,111 +34,11 @@ export default function Map() {
 
 
 
-
-
-
-
-
-  const createCube = () => {
-    const { length, breadth, height } = cubeDimensions;
-    const l = parseFloat(length);
-    const b = parseFloat(breadth);
-    const h = parseFloat(height);
-    const { x, y, z } = cubePosition;
-  
-    // Create a Babylon.js box (cube)
-    const box = BABYLON.MeshBuilder.CreateBox("cube", { width: l, depth: b, height: h }, customLayer.scene);
-  
-    // Position the cube at the specified coordinates
-    box.position = new BABYLON.Vector3(x, y + h / 2, z);
-  
-    // Add a bright color for visibility
-    const material = new BABYLON.StandardMaterial("cubeMaterial", customLayer.scene);
-    material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red for visibility
-    box.material = material;
-
-    // Store the created cube in the ref for later access
-    cubeRef.current = box;
-
-    // If a gizmo already exists, attach it to the new cube
-    if (gizmoRef.current) {
-      gizmoRef.current.attachedMesh = cubeRef.current;
-  };
-  };
-  // Function to toggle the gizmo
-  const toggleGizmo = () => {
-    if (sceneRef.current && !gizmoRef.current) {
-      // Ensure the scene is available before creating the UtilityLayerRenderer
-      gizmoRef.current = new BABYLON.UtilityLayerRenderer(sceneRef.current);
-      const gizmo = new BABYLON.PositionGizmo(gizmoRef.current);
-      gizmo.updateGizmoRotationToMatchAttachedMesh = false;
-      gizmo.updateGizmoPositionToMatchAttachedMesh = true;
-      gizmoRef.current = gizmo;
-    }
-    // Attach or detach the gizmo from the cube
-    if (gizmoRef.current) {
-      gizmoRef.current.attachedMesh = gizmoRef.current.attachedMesh ? null : cubeRef.current;
-    }
-  };
-  
-  
-  // World matrix parameters for 3D rendering
-  const worldOrigin = [LONG, LAT]; // World origin coordinates
-  const worldAltitude = 0; // Altitude for the 3D world
-
-  // Maplibre.js default coordinate system (no rotations)
-  // +x east, -y north, +z up
-  //var worldRotate = [0, 0, 0];
-
-  // Babylon.js default coordinate system
-  // +x east, +y up, +z north
-
-  // Rotation matrix for Babylon.js (changing coordinate system)
-  const worldRotate = [Math.PI / 2, 0, 0];
-
-  // Calculate mercator coordinates and scale for the 3D world
-  const worldOriginMercator = maplibregl.MercatorCoordinate.fromLngLat(
-    worldOrigin,
-    worldAltitude
-  );
-  const worldScale = worldOriginMercator.meterInMercatorCoordinateUnits();
-
-  // Calculate the world matrix for 3D transformations
-  const worldMatrix = BABYLON.Matrix.Compose(
-    new BABYLON.Vector3(worldScale, worldScale, worldScale),
-    BABYLON.Quaternion.FromEulerAngles(
-      worldRotate[0],
-      worldRotate[1],
-      worldRotate[2]
-    ),
-    new BABYLON.Vector3(
-      worldOriginMercator.x,
-      worldOriginMercator.y,
-      worldOriginMercator.z
-    )
-  );
-
-  // Function to handle changing the map type
-  const handleMapTypeChange = (type) => {
-    setMapType(type);
+  // Function to move the cube along the X-axis
+  const moveCube = (direction) => {
+    setCubeX(prevX => prevX + direction * parseFloat(cubeDimensions.length));
   };
 
-  // Function to get the style URL based on the map type
-  const getStyleUrl = (type) => {
-    // Switch case to return the appropriate style URL
-    switch (type) {
-      case "topographic":
-        return `https://api.maptiler.com/maps/basic-v2/style.json?key=${API_KEY}`;
-      case "satellite":
-        return `https://api.maptiler.com/maps/satellite/style.json?key=${API_KEY}`;
-      case "3Dbuildings":
-        return `https://api.maptiler.com/maps/e3502d9d-91d8-41e3-ab8d-de7965bc0fde/style.json?key=${API_KEY}`;
-      case "Terrain":
-        return `https://api.maptiler.com/maps/winter-v2/style.json?key=${API_KEY}`;
-      default:
-        return `https://api.maptiler.com/maps/basic-v2/style.json?key=${API_KEY}`;
-    }
-  };
 
   // configuration of the custom layer for a 3D model per the CustomLayerInterface
   const customLayer = {
@@ -147,18 +47,11 @@ export default function Map() {
     renderingMode: "3d",
 
     // Initialize Babylon.js engine and scene
-    onAdd(map, gl) {
-      customLayer.createCube = createCube; // Attach the function to the customLayer
-
-      this.engine = new BABYLON.Engine(
-        gl,
-        true,
-        {
-          useHighPrecisionMatrix: true, // Important to prevent jitter at mercator scale
-        },
-        true
-      );
+    onAdd: function(map, gl)  {
+      // Initialize Babylon.js engine and scene
+      this.engine = new BABYLON.Engine(gl, true, { preserveDrawingBuffer: true, stencil: true });
       this.scene = new BABYLON.Scene(this.engine);
+      sceneRef.current = this.scene;
       this.scene.autoClear = false; // Prevents clearing the canvas on each frame
       this.scene.detachControl(); // Detach default camera controls
 
@@ -222,29 +115,105 @@ export default function Map() {
     },
   };
 
-  // Function to handle search
-  const handleSearch = async () => {
-    if (!searchAddress) return;
-    const query = encodeURIComponent(searchAddress);
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${query}`
-      );
-      const data = await response.json();
-      if (data && data.length > 0) {
-        const { lat, lon } = data[0];
-        map.current.flyTo({
-          center: [lon, lat],
-          zoom: ZOOM,
-        });
-      }
-    } catch (error) {
-      console.error('Error during geocoding:', error);
-    }
+  // Function to create the cube
+  const createCube = () => {
+      const { length, breadth, height } = cubeDimensions;
+      const l = parseFloat(length);
+      const b = parseFloat(breadth);
+      const h = parseFloat(height);
+      const { x, y, z } = cubePosition;
+    
+      // Create a Babylon.js box (cube)
+      const box = BABYLON.MeshBuilder.CreateBox("cube", { width: l, depth: b, height: h }, customLayer.scene);
+    
+      // Position the cube at the specified coordinates
+      box.position = new BABYLON.Vector3(x, y + h / 2, z);
+    
+      // Add a bright color for visibility
+      const material = new BABYLON.StandardMaterial("cubeMaterial", customLayer.scene);
+      material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red for visibility
+      box.material = material;
+
+      // Store the created cube in the ref for later access
+      cubeRef.current = box;
+
+      // If a gizmo already exists, attach it to the new cube
+      if (gizmoRef.current) {
+        gizmoRef.current.attachedMesh = cubeRef.current;
+    };
+
+    if (sceneRef.current) {
+        const { length, breadth, height } = cubeDimensions;
+        const box = BABYLON.MeshBuilder.CreateBox("cube", { width: length, depth: breadth, height: height }, sceneRef.current);
+        box.position = new BABYLON.Vector3(cubeX, 0, 0); // Use cubeX state
+        cubeRef.current = box;
+    };
   };
+
+  
+  // Function to handle button press for moving the cube
+  const handleMovePress = (direction) => {
+    moveInterval = setInterval(() => moveCubeX(direction), 100);
+  };
+
+  // Function to handle button release
+  const handleMoveRelease = () => {
+    clearInterval(moveInterval);
+  };
+
+  let moveInterval; // Interval for moving the cube
+  
+  
+  // World matrix parameters for 3D rendering
+  const worldOrigin = [LONG, LAT]; // World origin coordinates
+  const worldAltitude = 0; // Altitude for the 3D world
+
+  // Maplibre.js default coordinate system (no rotations)
+  // +x east, -y north, +z up
+  //var worldRotate = [0, 0, 0];
+
+  // Babylon.js default coordinate system
+  // +x east, +y up, +z north
+
+  // Rotation matrix for Babylon.js (changing coordinate system)
+  const worldRotate = [Math.PI / 2, 0, 0];
+
+  // Calculate mercator coordinates and scale for the 3D world
+  const worldOriginMercator = maplibregl.MercatorCoordinate.fromLngLat(
+    worldOrigin,
+    worldAltitude
+  );
+  const worldScale = worldOriginMercator.meterInMercatorCoordinateUnits();
+
+  // Calculate the world matrix for 3D transformations
+  const worldMatrix = BABYLON.Matrix.Compose(
+    new BABYLON.Vector3(worldScale, worldScale, worldScale),
+    BABYLON.Quaternion.FromEulerAngles(
+      worldRotate[0],
+      worldRotate[1],
+      worldRotate[2]
+    ),
+    new BABYLON.Vector3(
+      worldOriginMercator.x,
+      worldOriginMercator.y,
+      worldOriginMercator.z
+    )
+  );
 
   // useEffect hook to initialize or update the map
   useEffect(() => {
+
+    // Update cube position when cubeX state changes
+    if (cubeRef.current) {
+      cubeRef.current.position.x = cubeX;
+    };
+  
+
+  // Function to move the cube along the X-axis
+  const moveCube = (direction) => {
+        setCubeX(prevX => prevX + direction * parseFloat(cubeDimensions.length));
+    };
+
     if (map.current) {
       // Set any other attributes that need changing here
       map.current.setStyle(getStyleUrl(mapType));
@@ -277,7 +246,51 @@ export default function Map() {
     });
   
     
-  }, [mapType, cubeDimensions]);
+  }, [mapType, cubeDimensions, searchAddress, cubeX]);
+
+  // Function to get the style URL based on the map type
+  const getStyleUrl = (type) => {
+    // Switch case to return the appropriate style URL
+    switch (type) {
+      case "topographic":
+        return `https://api.maptiler.com/maps/basic-v2/style.json?key=${API_KEY}`;
+      case "satellite":
+        return `https://api.maptiler.com/maps/satellite/style.json?key=${API_KEY}`;
+      case "3Dbuildings":
+        return `https://api.maptiler.com/maps/e3502d9d-91d8-41e3-ab8d-de7965bc0fde/style.json?key=${API_KEY}`;
+      case "Terrain":
+        return `https://api.maptiler.com/maps/winter-v2/style.json?key=${API_KEY}`;
+      default:
+        return `https://api.maptiler.com/maps/basic-v2/style.json?key=${API_KEY}`;
+    }
+  };
+
+  // Function to handle changing the map type
+  const handleMapTypeChange = (type) => {
+    setMapType(type);
+  };
+
+  // Function to handle search
+  const handleSearch = async () => {
+    if (!searchAddress) return;
+    const query = encodeURIComponent(searchAddress);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${query}`
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        map.current.flyTo({
+          center: [lon, lat],
+          zoom: ZOOM,
+        });
+      }
+    } catch (error) {
+      console.error('Error during geocoding:', error);
+    }
+  };
+
 
   // Render the map and map options in the UI
   return (
@@ -314,7 +327,13 @@ export default function Map() {
               onChange={(e) => setCubeDimensions({ ...cubeDimensions, height: e.target.value })}
             />
             <button onClick={createCube}>Create Cube</button>
-            <button onClick={toggleGizmo}>Move</button> {/* Button to toggle the gizmo */}
+
+            {/* Frame for moving cube on X-axis */}
+            <div style={{ marginLeft: '10px' }}>
+              <span>Move on X-axis: </span>
+              <button onClick={() => moveCube(1)}>+</button>
+              <button onClick={() => moveCube(-1)}>-</button>
+            </div>
           </div>
         </div>
   
@@ -331,8 +350,8 @@ export default function Map() {
       </div>
   
       {/* Map Container */}
-      <div className="map-wrap" style={{ position: 'relative', height: '90vh' }}>
-        <div ref={mapContainer} className="map" style={{ width: '100%', height: '100%' }} />
+      <div className="map-wrap">
+        <div ref={mapContainer} className="map" />
       </div>
     </>
   );
