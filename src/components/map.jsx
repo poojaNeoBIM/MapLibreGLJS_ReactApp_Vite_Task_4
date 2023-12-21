@@ -18,8 +18,31 @@ export default function Map() {
   const API_KEY = "p47xAmvxV6awt2xre9CN"; // API key for map services
   const [mapType, setMapType] = useState("topographic"); // State to manage the current type of map
   const [searchAddress, setSearchAddress] = useState(""); // State for the search input
+  const [cubeDimensions, setCubeDimensions] = useState({ length: 1, breadth: 1, height: 1 });
+  const [cubePosition, setCubePosition] = useState({ x: 0, y: 0, z: 0 });
 
 
+
+  const createCube = () => {
+    const { length, breadth, height } = cubeDimensions;
+    const l = parseFloat(length);
+    const b = parseFloat(breadth);
+    const h = parseFloat(height);
+    const { x, y, z } = cubePosition;
+  
+    // Create a Babylon.js box (cube)
+    const box = BABYLON.MeshBuilder.CreateBox("cube", { width: l, depth: b, height: h }, customLayer.scene);
+  
+    // Position the cube at the specified coordinates
+    box.position = new BABYLON.Vector3(x, y + h / 2, z);
+  
+    // Add a bright color for visibility
+    const material = new BABYLON.StandardMaterial("cubeMaterial", customLayer.scene);
+    material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red for visibility
+    box.material = material;
+  };
+  
+  
   // World matrix parameters for 3D rendering
   const worldOrigin = [LONG, LAT]; // World origin coordinates
   const worldAltitude = 0; // Altitude for the 3D world
@@ -86,6 +109,8 @@ export default function Map() {
 
     // Initialize Babylon.js engine and scene
     onAdd(map, gl) {
+      customLayer.createCube = createCube; // Attach the function to the customLayer
+
       this.engine = new BABYLON.Engine(
         gl,
         true,
@@ -184,6 +209,16 @@ export default function Map() {
     if (map.current) {
       // Set any other attributes that need changing here
       map.current.setStyle(getStyleUrl(mapType));
+      // Add click event listener
+    map.current.on('click', (e) => {
+      const clickLngLat = [e.lngLat.lng, e.lngLat.lat];
+      const mercatorCoord = maplibregl.MercatorCoordinate.fromLngLat(clickLngLat, 0);
+      setCubePosition({
+        x: mercatorCoord.x * worldScale,
+        y: 0,
+        z: mercatorCoord.y * worldScale
+      });
+    });
       return;
     }
 
@@ -201,32 +236,66 @@ export default function Map() {
     map.current.on("style.load", () => {
       map.current.addLayer(customLayer);
     });
-  }, [mapType]);
+  
+    
+  }, [mapType, cubeDimensions]);
 
   // Render the map and map options in the UI
   return (
     <>
-      <div id="searchContainer">
-        <input
-          type="text"
-          placeholder="Search address..."
-          value={searchAddress}
-          onChange={(e) => setSearchAddress(e.target.value)}
-        />
-        <button onClick={handleSearch}>Search</button>
+      {/* Top bar for controls */}
+      <div id="topBar" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+        {/* Dropdown for map type selection and Cube Controls */}
+        <div id="controlsContainer" style={{ display: 'flex' }}>
+          <div id="mapOptions" style={{ marginRight: '20px' }}>
+            <select onChange={(e) => handleMapTypeChange(e.target.value)}>
+              <option value="topographic">Topographic Map</option>
+              <option value="satellite">Satellite Map</option>
+              <option value="3Dbuildings">3D Building Map</option>
+              <option value="Terrain">Terrain Map</option>
+            </select>
+          </div>
+          <div id="cubeControls">
+            <input
+              type="number"
+              placeholder="Length"
+              value={cubeDimensions.length}
+              onChange={(e) => setCubeDimensions({ ...cubeDimensions, length: e.target.value })}
+            />
+            <input
+              type="number"
+              placeholder="Breadth"
+              value={cubeDimensions.breadth}
+              onChange={(e) => setCubeDimensions({ ...cubeDimensions, breadth: e.target.value })}
+            />
+            <input
+              type="number"
+              placeholder="Height"
+              value={cubeDimensions.height}
+              onChange={(e) => setCubeDimensions({ ...cubeDimensions, height: e.target.value })}
+            />
+            <button onClick={createCube}>Create Cube</button>
+          </div>
+        </div>
+  
+        {/* Search Bar */}
+        <div id="searchContainer">
+          <input
+            type="text"
+            placeholder="Search address..."
+            value={searchAddress}
+            onChange={(e) => setSearchAddress(e.target.value)}
+          />
+          <button onClick={handleSearch}>Search</button>
+        </div>
       </div>
-      <div id="mapOptions">
-        {/* Dropdown for map type selection */}
-        <select onChange={(e) => handleMapTypeChange(e.target.value)}>
-          <option value="topographic">Topographic Map</option>
-          <option value="satellite">Satellite Map</option>
-          <option value="3Dbuildings">3D Building Map</option>
-          <option value="Terrain">Terrain Map</option>
-        </select>
-      </div>
-      <div className="map-wrap">
-        <div ref={mapContainer} className="map" />
+  
+      {/* Map Container */}
+      <div className="map-wrap" style={{ position: 'relative', height: '90vh' }}>
+        <div ref={mapContainer} className="map" style={{ width: '100%', height: '100%' }} />
       </div>
     </>
   );
+  
+  
 }
