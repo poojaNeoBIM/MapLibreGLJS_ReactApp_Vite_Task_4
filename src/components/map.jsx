@@ -20,6 +20,22 @@ export default function Map() {
   const [searchAddress, setSearchAddress] = useState(""); // State for the search input
   const [cubeDimensions, setCubeDimensions] = useState({ length: 1, breadth: 1, height: 1 });
   const [cubePosition, setCubePosition] = useState({ x: 0, y: 0, z: 0 });
+  // Refs for the cube, gizmo, and utility layer
+  const cubeRef = useRef(null);
+  const gizmoRef = useRef(null);
+  const sceneRef = useRef(null);  // Ref for the Babylon scene
+  const utilLayerRef = useRef(null); // Add a ref for the utility layer
+
+ 
+  
+ 
+
+
+
+
+
+
+
 
 
 
@@ -40,6 +56,29 @@ export default function Map() {
     const material = new BABYLON.StandardMaterial("cubeMaterial", customLayer.scene);
     material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red for visibility
     box.material = material;
+
+    // Store the created cube in the ref for later access
+    cubeRef.current = box;
+
+    // If a gizmo already exists, attach it to the new cube
+    if (gizmoRef.current) {
+      gizmoRef.current.attachedMesh = cubeRef.current;
+  };
+  };
+  // Function to toggle the gizmo
+  const toggleGizmo = () => {
+    if (sceneRef.current && !gizmoRef.current) {
+      // Ensure the scene is available before creating the UtilityLayerRenderer
+      gizmoRef.current = new BABYLON.UtilityLayerRenderer(sceneRef.current);
+      const gizmo = new BABYLON.PositionGizmo(gizmoRef.current);
+      gizmo.updateGizmoRotationToMatchAttachedMesh = false;
+      gizmo.updateGizmoPositionToMatchAttachedMesh = true;
+      gizmoRef.current = gizmo;
+    }
+    // Attach or detach the gizmo from the cube
+    if (gizmoRef.current) {
+      gizmoRef.current.attachedMesh = gizmoRef.current.attachedMesh ? null : cubeRef.current;
+    }
   };
   
   
@@ -275,6 +314,7 @@ export default function Map() {
               onChange={(e) => setCubeDimensions({ ...cubeDimensions, height: e.target.value })}
             />
             <button onClick={createCube}>Create Cube</button>
+            <button onClick={toggleGizmo}>Move</button> {/* Button to toggle the gizmo */}
           </div>
         </div>
   
